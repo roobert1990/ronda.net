@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Setor | Print Service Fleury</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body class="bg-slate-900 flex items-center justify-center min-h-screen p-4 font-sans text-slate-800 relative overflow-hidden">
+
+    <div id="toast" class="fixed top-5 right-5 z-[100] transform translate-x-[150%] transition-transform duration-500">
+        <div id="toast-content" class="flex items-center gap-4 px-6 py-4 rounded-[1.5rem] shadow-2xl font-black text-sm text-white min-w-[280px]">
+            <i id="toast-icon" class="fas text-xl"></i>
+            <span id="toast-msg"></span>
+        </div>
+    </div>
+
+    <div class="bg-white p-6 md:p-10 rounded-[3rem] shadow-2xl w-full max-w-lg">
+        
+        <div id="step-search">
+            <div class="text-center mb-10">
+                <div class="bg-blue-100 text-blue-600 w-24 h-24 rounded-[2.5rem] flex items-center justify-center text-4xl mx-auto mb-6 shadow-inner">
+                    <i class="fas fa-search"></i>
+                </div>
+                <h2 class="text-4xl font-black text-slate-800 tracking-tighter">Localizar SELB</h2>
+                <p class="text-slate-400 font-bold text-sm">Insira o código SELB da impressora.</p>
+            </div>
+            <input type="text" id="search_input" placeholder="EX:30DK" 
+                   class="w-full border-4 border-slate-50 p-6 rounded-[2rem] text-center font-black text-3xl uppercase tracking-widest focus:border-blue-500 outline-none transition-all mb-8 shadow-sm">
+            <button onclick="findPrinter()" class="w-full bg-blue-600 text-white p-6 rounded-[2rem] font-black text-xl shadow-xl hover:bg-blue-500 active:scale-[0.98] transition-all">BUSCAR (ENTER)</button>
+        </div>
+
+        <div id="step-update" class="hidden">
+            <div id="display-info" class="bg-slate-50 p-7 rounded-[2.5rem] border-2 border-slate-100 mb-8"></div>
+
+            <form id="formUpdate" class="space-y-6">
+                <div class="bg-emerald-50/50 p-6 rounded-[2.5rem] border-2 border-emerald-100">
+                    <label class="text-[10px] font-black text-emerald-700 uppercase block mb-5 text-center tracking-widest">Toners Novos (No Armário)</label>
+                    <div id="input-grid-cheio"></div>
+                </div>
+
+                <div class="bg-amber-50/50 p-6 rounded-[2.5rem] border-2 border-amber-100">
+                    <label class="text-[10px] font-black text-amber-700 uppercase block mb-5 text-center tracking-widest">Vazios (Para Coleta)</label>
+                    <div id="input-grid-vazio"></div>
+                </div>
+
+                <div class="flex gap-4 pt-2">
+                    <button type="button" onclick="resetSearch()" class="flex-1 bg-slate-100 text-slate-400 p-6 rounded-[1.5rem] font-black uppercase text-xs">Voltar</button>
+                    <button type="submit" class="flex-[2] bg-slate-900 text-white p-6 rounded-[1.5rem] font-black uppercase text-xs shadow-2xl hover:bg-slate-800 transition-all">Atualizar (Enter)</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+        const firebaseConfig = { databaseURL: "https://dashboard-fleury-default-rtdb.firebaseio.com" };
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        let printers = [];
+        let current = null;
+
+        onValue(ref(db, 'printers'), (snap) => { printers = snap.val() ? Object.values(snap.val()) : []; });
+
+        // Função Toast
+        window.showToast = (msg, type = 'success') => {
+            const toast = document.getElementById('toast');
+            const content = document.getElementById('toast-content');
+            content.className = `flex items-center gap-4 px-6 py-4 rounded-[1.5rem] shadow-2xl font-black text-sm text-white min-w-[280px] ${type === 'success' ? 'bg-emerald-500' : 'bg-red-500'}`;
+            document.getElementById('toast-icon').className = `fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}`;
+            document.getElementById('toast-msg').innerText = msg;
+            toast.classList.remove('translate-x-[150%]');
+            setTimeout(() => toast.classList.add('translate-x-[150%]'), 3000);
+        };
+
+        document.getElementById('search_input').addEventListener('keypress', (e) => { if (e.key === 'Enter') findPrinter(); });
+
+        window.findPrinter = () => {
+            const val = document.getElementById('search_input').value.trim().toUpperCase();
+            current = printers.find(p => p.selb.toUpperCase() === val);
+            if(!current) return showToast("Ativo não encontrado!", "error");
+
+            document.getElementById('display-info').innerHTML = `
+                <h2 class="text-3xl font-black text-slate-800 leading-tight">${current.selb}</h2>
+                <p class="text-[11px] font-black text-slate-400 uppercase tracking-wider">${current.model} • ${current.setor}</p>
+            `;
+
+            const gCheio = document.getElementById('input-grid-cheio');
+            const gVazio = document.getElementById('input-grid-vazio');
+
+            if(current.type === 'COLOR') {
+                const colors = [
+                    {id: 'k', label: 'K', text: 'text-slate-800', border: 'border-slate-200'},
+                    {id: 'c', label: 'C', text: 'text-cyan-600', border: 'border-cyan-100'},
+                    {id: 'm', label: 'M', text: 'text-pink-600', border: 'border-pink-100'},
+                    {id: 'y', label: 'Y', text: 'text-amber-600', border: 'border-amber-100'}
+                ];
+                gCheio.className = gVazio.className = "grid grid-cols-4 gap-2";
+                gCheio.innerHTML = colors.map(c => `<input type="number" id="u_${c.id}" value="${current['estoque'+c.id.toUpperCase()]||0}" class="w-full border-2 ${c.border} p-3 rounded-xl text-center font-black ${c.text}">`).join('');
+                gVazio.innerHTML = colors.map(c => `<input type="number" id="v_${c.id}" value="${current['vazios'+c.id.toUpperCase()]||0}" class="w-full border-2 ${c.border} p-3 rounded-xl text-center font-black ${c.text}">`).join('');
+            } else {
+                gCheio.className = gVazio.className = "grid grid-cols-1";
+                gCheio.innerHTML = `<input type="number" id="u_k" value="${current.estoqueK||0}" class="w-full border-2 p-5 rounded-2xl text-center font-black text-4xl">`;
+                gVazio.innerHTML = `<input type="number" id="v_k" value="${current.vaziosK||0}" class="w-full border-2 p-5 rounded-2xl text-center font-black text-4xl">`;
+            }
+
+            document.getElementById('step-search').classList.add('hidden');
+            document.getElementById('step-update').classList.remove('hidden');
+            setTimeout(() => document.getElementById('u_k').focus(), 100);
+        };
+
+        window.resetSearch = () => {
+            document.getElementById('step-search').classList.remove('hidden');
+            document.getElementById('step-update').classList.add('hidden');
+            document.getElementById('search_input').value = "";
+            document.getElementById('search_input').focus();
+        };
+
+        document.getElementById('formUpdate').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const isColor = current.type === 'COLOR';
+            const data = {
+                ...current,
+                estoqueK: parseInt(document.getElementById('u_k').value)||0,
+                estoqueC: isColor ? parseInt(document.getElementById('u_c').value)||0 : 0,
+                estoqueM: isColor ? parseInt(document.getElementById('u_m').value)||0 : 0,
+                estoqueY: isColor ? parseInt(document.getElementById('u_y').value)||0 : 0,
+                vaziosK: parseInt(document.getElementById('v_k').value)||0,
+                vaziosC: isColor ? parseInt(document.getElementById('v_c').value)||0 : 0,
+                vaziosM: isColor ? parseInt(document.getElementById('v_m').value)||0 : 0,
+                vaziosY: isColor ? parseInt(document.getElementById('v_y').value)||0 : 0
+            };
+            await set(ref(db, 'printers/' + current.selb), data);
+            showToast("Estoque atualizado!");
+            resetSearch();
+        });
+    </script>
+</body>
+</html> 

@@ -1,0 +1,2 @@
+19/03/2026 13:54:38 | IP: 172.19.114.211 | Contador: Erro: name 'SnmpEngine' is not defined
+19/03/2026 13:56:25 | IP: 172.19.114.211 | Contador: Erro: name 'SnmpEngine' is not defined
